@@ -30,3 +30,7 @@ $settings->add(new admin_setting_configtext('assignsubmission_kohareview/kohaurl
     new lang_string('kohaurl', 'assignsubmission_kohareview'),
     new lang_string('kohaurl_help', 'assignsubmission_kohareview'), ''));
 
+$settings->add(new admin_setting_configtext('assignsubmission_kohareview/coceurl',
+    new lang_string('coceurl', 'assignsubmission_kohareview'),
+    new lang_string('coceurl_help', 'assignsubmission_kohareview'), ''));
+

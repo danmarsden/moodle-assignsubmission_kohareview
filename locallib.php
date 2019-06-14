@@ -98,6 +98,49 @@ class assign_submission_kohareview extends assign_submission_plugin {
             $kohaid = 0;
         } else {
             $kohaid = $data->assignsubmission_kohareview_kohaid;
+            $kohasitesettings = get_config('assignsubmission_kohareview');
+            if (empty($kohasitesettings->kohaurl)) {
+                $this->set_error(get_string('kohaurlnotset', 'assignsubmission_kohareview'));
+                return false;
+            }
+
+            // TODO - there is defintely a better way to do this... but quick/hacky for now..
+
+            // Check if this is a valid id and we get a response from the server.
+            $baseurl = $kohasitesettings->kohaurl . "/cgi-bin/koha/opac-search.pl?idx=kw&format=rss2&q=biblionumber=".$kohaid;
+
+            $c = new curl();
+            $response = $c->get($baseurl);
+            $xml = new SimpleXMLElement($response);
+            $link = (string) $xml->channel->item->link;
+            $title = (string) $xml->channel->item->title;
+            $coverurl = '';
+            if (!empty($link) && !empty($title)) {
+                // Try to get ISBN from $response.
+                if (!empty($kohasitesettings->coceurl)) {
+                    // This is really hacky.... probably shouldn't be using simeplexmlelement for an rss feed...
+                    $start = strpos($response, '<dc:identifier>');
+                    $end = strpos($response, '</dc:identifier>');
+                    if (!empty($start) && !empty($end)) {
+                        $isbn = substr($response, $start + 15, ($end - $start - 15));
+                        $isbn = trim(str_replace('ISBN', '', $isbn));
+                        if (!empty($isbn)) {
+                            // Get Cover url.
+                            $url = $kohasitesettings->coceurl .'/cover?id='.$isbn;
+                            $response2 = json_decode($c->get($url));
+                            if (isset($response2->$isbn)) {
+                                $coverurl = $response2->$isbn;
+                            }
+                        }
+                    }
+                }
+                $this->set_config('title', $title);
+                $this->set_config('link', $link);
+                $this->set_config('coverurl', $coverurl);
+            } else {
+                $this->set_error(get_string('invalidkohaid', 'assignsubmission_kohareview'));
+                return false;
+            }
         }
 
         $this->set_config('kohaid', $kohaid);
@@ -155,18 +198,6 @@ class assign_submission_kohareview extends assign_submission_plugin {
     }
 
     /**
-     * Display the saved text content from the editor in the view table
-     *
-     * @param stdClass $submission
-     * @return string
-     */
-    public function view(stdClass $submission) {
-        $result = 'KOHAVIEWTEXT';
-
-        return $result;
-    }
-
-    /**
      * The assignment has been deleted - cleanup
      *
      * @return bool
@@ -213,7 +244,22 @@ class assign_submission_kohareview extends assign_submission_plugin {
      * @return string
      */
     public function view_header() {
-        return '<p>SHOW LINK TO BOOK THINGY!!</p>';
+        $return = '';
+        $url = $this->get_config('link');
+        $title = $this->get_config('title');
+        $coverurl = $this->get_config('coverurl');
+        if (!empty($url) && !empty($title)) {
+            $return .= "<p><span class='kohatitle'>$title</span>";
+            if (!empty($coverurl)) {
+                $return .= '<p class="kohacover">
+                           <img src="'.$coverurl.'" title="'.get_string('coverimage', 'assignsubmission_kohareview').
+                    '"/></p>';
+            }
+            $return .= '<p class="kohacover">
+                           <a href="'.$url.'">'.get_string('moreinfo', 'assignsubmission_kohareview') .'</a></p>';
+            $return .= "</p>";
+        }
+        return $return;
     }
 }
 
